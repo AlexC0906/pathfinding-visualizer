@@ -147,8 +147,10 @@ class Grid:
 
     def set_start(self, row, col):
         node = self.get_node(row, col)
-        if node is None:
+        if node is None or node is self.end:
             return
+
+        self.clear_search()
 
         if self.start is not None:
             self.start.reset_search()
@@ -160,8 +162,10 @@ class Grid:
 
     def set_end(self, row, col):
         node = self.get_node(row, col)
-        if node is None:
+        if node is None or node is self.start:
             return
+
+        self.clear_search()
 
         if self.end is not None:
             self.end.reset_search()
@@ -179,6 +183,7 @@ class Grid:
         if node is self.start or node is self.end:
             return
 
+        self.clear_search()
         node.set_wall()
 
     def clear(self):
@@ -217,6 +222,7 @@ class Grid:
         if node is None or node is self.start or node is self.end:
             return
 
+        self.clear_search()
         node.reset_search()
         node.is_wall = False
         node.color = WHITE
