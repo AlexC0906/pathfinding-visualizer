@@ -74,3 +74,55 @@ def a_star(grid, draw_callback, delay=10):
             pygame.time.delay(delay)
 
     return []
+
+
+def dijkstra(grid, draw_callback, delay=10):
+    if grid.start is None or grid.end is None:
+        return []
+
+    distances = {grid.start: 0}
+    open_set = [(0, 0, grid.start)]
+    visited = set()
+    counter = 1
+
+    while open_set:
+        distance, _, current = heapq.heappop(open_set)
+
+        if current in visited:
+            continue
+        visited.add(current)
+
+        if current is grid.end:
+            path = reconstruct_path(current)
+            for node in path:
+                if node is not grid.start and node is not grid.end:
+                    node.set_path()
+                draw_callback()
+            return path
+
+        if current is not grid.start:
+            current.set_closed()
+
+        for neighbor in grid.get_neighbors(current):
+            if neighbor.is_wall or neighbor in visited:
+                continue
+
+            next_distance = distance + 1
+            if next_distance < distances.get(neighbor, float("inf")):
+                distances[neighbor] = next_distance
+                neighbor.parent = current
+                neighbor.g = next_distance
+                neighbor.set_open()
+                heapq.heappush(open_set, (next_distance, counter, neighbor))
+                counter += 1
+
+        if current is not grid.start:
+            current.set_visited()
+
+        draw_callback()
+
+        if delay:
+            import pygame
+            pygame.time.delay(delay)
+
+    return []

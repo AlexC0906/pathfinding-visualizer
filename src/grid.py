@@ -1,3 +1,5 @@
+import random
+
 import pygame
 
 from src.colors import BLACK, CLOSED, GREY, GREEN, OPEN, PATH, RED, VISITED, WHITE
@@ -58,11 +60,13 @@ class Node:
 
     def set_start(self):
         self.reset_search()
+        self.is_wall = False
         self.is_start = True
         self.color = GREEN
 
     def set_end(self):
         self.reset_search()
+        self.is_wall = False
         self.is_end = True
         self.color = RED
 
@@ -194,6 +198,28 @@ class Grid:
                 elif not node.is_wall:
                     node.reset_search()
                     node.color = WHITE
+
+    def generate_random_walls(self, density=0.28):
+        for row in self.grid:
+            for node in row:
+                if node is self.start or node is self.end:
+                    continue
+
+                node.reset_search()
+                node.is_wall = False
+                if random.random() < density:
+                    node.set_wall()
+                else:
+                    node.color = WHITE
+
+    def clear_wall(self, row, col):
+        node = self.get_node(row, col)
+        if node is None or node is self.start or node is self.end:
+            return
+
+        node.reset_search()
+        node.is_wall = False
+        node.color = WHITE
 
     def draw(self, win):
         for row in self.grid:

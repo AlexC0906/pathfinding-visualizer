@@ -2,7 +2,7 @@ import sys
 
 import pygame
 
-from src.algorithms import a_star
+from src.algorithms import a_star, dijkstra
 from src.colors import BACKGROUND
 from src.grid import Grid
 
@@ -18,6 +18,7 @@ class PathfindingVisualizer:
         self.clock = pygame.time.Clock()
         self.grid = Grid(rows, width)
         self.mode = "wall"
+        self.algorithm = "A*"
         self.running = False
 
     def handle_events(self):
@@ -33,11 +34,18 @@ class PathfindingVisualizer:
                     self.mode = "end"
                 elif event.key == pygame.K_w:
                     self.mode = "wall"
+                elif event.key == pygame.K_1:
+                    self.algorithm = "A*"
+                elif event.key == pygame.K_2:
+                    self.algorithm = "Dijkstra"
                 elif event.key == pygame.K_c:
                     self.grid.clear()
                     self.running = False
                 elif event.key == pygame.K_r:
                     self.grid.clear_search()
+                    self.running = False
+                elif event.key == pygame.K_m:
+                    self.grid.generate_random_walls()
                     self.running = False
                 elif event.key == pygame.K_SPACE:
                     self.run_algorithm()
@@ -51,10 +59,12 @@ class PathfindingVisualizer:
                     self.grid.set_start(row, col)
                 elif self.mode == "end":
                     self.grid.set_end(row, col)
-                elif self.mode == "wall":
+                elif self.mode == "wall" and event.button == 1:
                     self.grid.set_wall(row, col)
+                elif self.mode == "wall" and event.button == 3:
+                    self.grid.clear_wall(row, col)
 
-            if event.type == pygame.MOUSEMOTION and pygame.mouse.get_pressed()[0]:
+            if event.type == pygame.MOUSEMOTION and any(pygame.mouse.get_pressed()[:2]):
                 if self.running:
                     continue
 
@@ -62,8 +72,10 @@ class PathfindingVisualizer:
                 if row is None or col is None:
                     continue
 
-                if self.mode == "wall":
+                if self.mode == "wall" and pygame.mouse.get_pressed()[0]:
                     self.grid.set_wall(row, col)
+                elif self.mode == "wall" and pygame.mouse.get_pressed()[2]:
+                    self.grid.clear_wall(row, col)
 
     def run_algorithm(self):
         if self.running:
@@ -74,7 +86,8 @@ class PathfindingVisualizer:
 
         self.running = True
         self.grid.clear_search()
-        a_star(self.grid, self.draw, delay=20)
+        algorithm = a_star if self.algorithm == "A*" else dijkstra
+        algorithm(self.grid, self.draw, delay=20)
         self.running = False
 
     def update(self):
@@ -89,8 +102,8 @@ class PathfindingVisualizer:
     def draw_ui(self):
         font = pygame.font.SysFont("arial", 16)
         legend = [
-            "Mode: wall (W) | start (S) | end (E) | clear (C) | reset search (R)",
-            "Run algorithm: SPACE | Drag mouse to paint walls.",
+            f"Algorithm: {self.algorithm} (1 = A* | 2 = Dijkstra) | Mode: {self.mode} (W/S/E)",
+            "SPACE = run | M = random maze | R = reset search | C = clear | Right click = erase wall",
         ]
 
         for i, text in enumerate(legend):
