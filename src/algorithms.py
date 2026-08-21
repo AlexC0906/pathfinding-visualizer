@@ -1,4 +1,5 @@
 import heapq
+from collections import deque
 
 
 def heuristic(a, b):
@@ -13,7 +14,7 @@ def reconstruct_path(current_node):
     return path[::-1]
 
 
-def a_star(grid, draw_callback, delay=10):
+def a_star(grid, draw_callback, delay=10, stop_callback=None):
     if grid.start is None or grid.end is None:
         return []
 
@@ -31,12 +32,17 @@ def a_star(grid, draw_callback, delay=10):
     counter = 1
 
     while open_set:
+        if _should_stop(stop_callback):
+            return []
+
         _, _, current = heapq.heappop(open_set)
         in_open_set.remove(current)
 
         if current is grid.end:
             path = reconstruct_path(current)
             for node in path:
+                if _should_stop(stop_callback):
+                    return []
                 if node is not grid.start and node is not grid.end:
                     node.set_path()
                 draw_callback()
@@ -49,7 +55,7 @@ def a_star(grid, draw_callback, delay=10):
             if neighbor.is_wall:
                 continue
 
-            tentative_g_score = g_score[current] + 1
+            tentative_g_score = g_score[current] + neighbor.cost
             if tentative_g_score < g_score.get(neighbor, float("inf")):
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g_score
@@ -69,14 +75,12 @@ def a_star(grid, draw_callback, delay=10):
 
         draw_callback()
 
-        if delay:
-            import pygame
-            pygame.time.delay(delay)
+        _delay(delay, stop_callback)
 
     return []
 
 
-def dijkstra(grid, draw_callback, delay=10):
+def dijkstra(grid, draw_callback, delay=10, stop_callback=None):
     if grid.start is None or grid.end is None:
         return []
 
@@ -86,6 +90,9 @@ def dijkstra(grid, draw_callback, delay=10):
     counter = 1
 
     while open_set:
+        if _should_stop(stop_callback):
+            return []
+
         distance, _, current = heapq.heappop(open_set)
 
         if current in visited:
@@ -95,6 +102,8 @@ def dijkstra(grid, draw_callback, delay=10):
         if current is grid.end:
             path = reconstruct_path(current)
             for node in path:
+                if _should_stop(stop_callback):
+                    return []
                 if node is not grid.start and node is not grid.end:
                     node.set_path()
                 draw_callback()
@@ -107,7 +116,7 @@ def dijkstra(grid, draw_callback, delay=10):
             if neighbor.is_wall or neighbor in visited:
                 continue
 
-            next_distance = distance + 1
+            next_distance = distance + neighbor.cost
             if next_distance < distances.get(neighbor, float("inf")):
                 distances[neighbor] = next_distance
                 neighbor.parent = current
@@ -121,8 +130,102 @@ def dijkstra(grid, draw_callback, delay=10):
 
         draw_callback()
 
-        if delay:
-            import pygame
-            pygame.time.delay(delay)
+        _delay(delay, stop_callback)
 
     return []
+
+
+def bfs(grid, draw_callback, delay=10, stop_callback=None):
+    if grid.start is None or grid.end is None:
+        return []
+
+    queue = deque([grid.start])
+    visited = {grid.start}
+
+    while queue:
+        if _should_stop(stop_callback):
+            return []
+
+        current = queue.popleft()
+
+        if current is grid.end:
+            return _animate_path(current, draw_callback, stop_callback)
+
+        if current is not grid.start:
+            current.set_closed()
+
+        for neighbor in grid.get_neighbors(current):
+            if neighbor.is_wall or neighbor in visited:
+                continue
+
+            visited.add(neighbor)
+            neighbor.parent = current
+            neighbor.set_open()
+            queue.append(neighbor)
+
+        if current is not grid.start:
+            current.set_visited()
+
+        draw_callback()
+        _delay(delay, stop_callback)
+
+    return []
+
+
+def dfs(grid, draw_callback, delay=10, stop_callback=None):
+    if grid.start is None or grid.end is None:
+        return []
+
+    stack = [grid.start]
+    visited = {grid.start}
+
+    while stack:
+        if _should_stop(stop_callback):
+            return []
+
+        current = stack.pop()
+
+        if current is grid.end:
+            return _animate_path(current, draw_callback, stop_callback)
+
+        if current is not grid.start:
+            current.set_closed()
+
+        neighbors = list(reversed(grid.get_neighbors(current)))
+        for neighbor in neighbors:
+            if neighbor.is_wall or neighbor in visited:
+                continue
+
+            visited.add(neighbor)
+            neighbor.parent = current
+            neighbor.set_open()
+            stack.append(neighbor)
+
+        if current is not grid.start:
+            current.set_visited()
+
+        draw_callback()
+        _delay(delay, stop_callback)
+
+    return []
+
+
+def _animate_path(current, draw_callback, stop_callback=None):
+    path = reconstruct_path(current)
+    for node in path:
+        if _should_stop(stop_callback):
+            return []
+        if node is not current and not node.is_start:
+            node.set_path()
+        draw_callback()
+    return path
+
+
+def _should_stop(stop_callback):
+    return stop_callback is not None and stop_callback()
+
+
+def _delay(delay, stop_callback=None):
+    if delay:
+        import pygame
+        pygame.time.delay(delay)

@@ -2,8 +2,19 @@ import sys
 
 import pygame
 
-from src.algorithms import a_star, dijkstra
-from src.colors import ACCENT, BACKGROUND, BLACK, GREEN, PANEL, PANEL_MUTED, RED, WHITE
+from src.algorithms import a_star, bfs, dfs, dijkstra
+from src.colors import (
+    ACCENT,
+    BACKGROUND,
+    BLACK,
+    GREEN,
+    PANEL,
+    PANEL_MUTED,
+    RED,
+    TERRAIN_HIGH,
+    TERRAIN_MEDIUM,
+    WHITE,
+)
 from src.grid import Grid
 
 
@@ -20,6 +31,7 @@ class PathfindingVisualizer:
         self.mode = "wall"
         self.algorithm = "A*"
         self.running = False
+        self.stop_requested = False
         self.status_message = "Select a mode and draw your grid."
         pygame.mouse.set_visible(False)
 
@@ -43,6 +55,13 @@ class PathfindingVisualizer:
                     self.algorithm = "A*"
                 elif event.key == pygame.K_2:
                     self.algorithm = "Dijkstra"
+                elif event.key == pygame.K_3:
+                    self.algorithm = "BFS"
+                elif event.key == pygame.K_4:
+                    self.algorithm = "DFS"
+                elif event.key == pygame.K_t:
+                    self.mode = "terrain"
+                    self.status_message = "Terrain mode selected. Click to cycle costs 1 / 3 / 5."
                 elif event.key == pygame.K_c:
                     self.grid.clear()
                     self.running = False
@@ -52,9 +71,9 @@ class PathfindingVisualizer:
                     self.running = False
                     self.status_message = "Search reset."
                 elif event.key == pygame.K_m:
-                    self.grid.generate_random_walls()
+                    self.grid.generate_random_maze()
                     self.running = False
-                    self.status_message = "Random maze generated."
+                    self.status_message = "Random maze generated with a guaranteed path."
                 elif event.key == pygame.K_SPACE:
                     self.run_algorithm()
 
@@ -74,6 +93,10 @@ class PathfindingVisualizer:
                     self.grid.set_wall(row, col)
                 elif self.mode == "wall" and event.button == 3:
                     self.grid.clear_wall(row, col)
+                elif self.mode == "terrain" and event.button == 1:
+                    self.grid.set_cost(row, col)
+                elif self.mode == "terrain" and event.button == 3:
+                    self.grid.reset_cost(row, col)
 
             if event.type == pygame.MOUSEMOTION and any(pygame.mouse.get_pressed()[:2]):
                 if self.running:
@@ -87,6 +110,10 @@ class PathfindingVisualizer:
                     self.grid.set_wall(row, col)
                 elif self.mode == "wall" and pygame.mouse.get_pressed()[2]:
                     self.grid.clear_wall(row, col)
+                elif self.mode == "terrain" and pygame.mouse.get_pressed()[0]:
+                    self.grid.set_cost(row, col)
+                elif self.mode == "terrain" and pygame.mouse.get_pressed()[2]:
+                    self.grid.reset_cost(row, col)
 
     def run_algorithm(self):
         if self.running:
@@ -97,15 +124,37 @@ class PathfindingVisualizer:
             return
 
         self.running = True
+        self.stop_requested = False
         self.grid.clear_search()
-        algorithm = a_star if self.algorithm == "A*" else dijkstra
-        path = algorithm(self.grid, self.draw, delay=20)
+        algorithms = {
+            "A*": a_star,
+            "Dijkstra": dijkstra,
+            "BFS": bfs,
+            "DFS": dfs,
+        }
+        algorithm = algorithms[self.algorithm]
+        path = algorithm(self.grid, self.draw, delay=20, stop_callback=self.should_stop)
         self.running = False
-        self.status_message = (
-            f"{self.algorithm} found a path with {len(path) - 1} steps."
-            if path
-            else f"{self.algorithm} could not find a path."
-        )
+
+        if self.stop_requested:
+            self.grid.clear_search()
+            self.status_message = "Search stopped."
+        else:
+            self.status_message = (
+                f"{self.algorithm} found a path with {len(path) - 1} steps."
+                if path
+                else f"{self.algorithm} could not find a path."
+            )
+
+    def should_stop(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.stop_requested = True
+
+        return self.stop_requested
 
     def update(self):
         pass
@@ -129,6 +178,7 @@ class PathfindingVisualizer:
             "wall": BLACK,
             "start": GREEN,
             "end": RED,
+            "terrain": TERRAIN_HIGH,
         }
         color = cursor_colors[self.mode]
 
@@ -139,7 +189,6 @@ class PathfindingVisualizer:
     def draw_ui(self):
         panel_rect = pygame.Rect(0, self.width, self.width, self.height - self.width)
         pygame.draw.rect(self.screen, PANEL, panel_rect)
-        pygame.draw.line(self.screen, ACCENT, (0, self.width), (self.width, self.width), 2)
 
         title_font = pygame.font.SysFont("consolas", 17, bold=True)
         body_font = pygame.font.SysFont("consolas", 13)
@@ -149,28 +198,40 @@ class PathfindingVisualizer:
         self.screen.blit(title, (22, self.width + 16))
 
         self.draw_badge(
-            f"{self.algorithm.upper()}  [1/2]",
+            f"{self.algorithm.upper()}  [1-4]",
             (205, self.width + 14),
             ACCENT,
             small_font,
         )
-        mode_colors = {"wall": BLACK, "start": GREEN, "end": RED}
+        mode_colors = {
+            "wall": BLACK,
+            "start": GREEN,
+            "end": RED,
+            "terrain": TERRAIN_MEDIUM,
+        }
         self.draw_badge(
-            f"{self.mode.upper()}  [W/S/E]",
+            f"{self.mode.upper()}  [W/S/E/T]",
             (365, self.width + 14),
             mode_colors[self.mode],
             small_font,
         )
 
         controls = body_font.render(
-            "SPACE run   M maze   R reset   C clear   RMB erase",
+            "SPACE run   ESC stop   M maze   R reset   C clear   RMB erase/cost",
             True,
             PANEL_MUTED,
         )
         self.screen.blit(controls, (22, self.width + 48))
 
+        cost_legend = small_font.render(
+            "TERRAIN COST:  1 white   3 orange   5 brown",
+            True,
+            PANEL_MUTED,
+        )
+        self.screen.blit(cost_legend, (22, self.width + 64))
+
         status = small_font.render(self.status_message, True, WHITE)
-        self.screen.blit(status, (22, self.width + 78))
+        self.screen.blit(status, (22, self.width + 88))
 
     def draw_badge(self, text, position, color, font):
         label = font.render(text, True, WHITE)
